@@ -24,7 +24,9 @@ public struct HeightSampleJob : IJobParallelFor {
         var y = revIndex.y;
         
         var localPosition = new float2(x * settings.Distance, y * settings.Distance);
-        var heightSample = getAdvPlanetGeneration(new float3(localPosition.x, 0f, localPosition.y), generationSettings.NoiseScale);
+        //var heightSample = getAdvPlanetGeneration(new float3(localPosition.x, 0f, localPosition.y), generationSettings.NoiseScale);
+        var heightSample = noise.snoise(localPosition * generationSettings.NoiseScale);
+        //var heightSample = getFractalNoise(new float3(localPosition.x, 0, localPosition.y), 3, generationSettings.NoiseScale, 1f);
         heights[index] = (half) heightSample;
     }
     
@@ -66,45 +68,6 @@ public struct HeightSampleJob : IJobParallelFor {
     }
 }
 
-public static class LinearArrayHelper {
-    public static int GetLinearIndex(int x, int y, int count) {
-        return y + x * count;
-    }
-    
-    public static int GetLinearIndex(int2 pos, int count) {
-        return pos.y + pos.x * count;
-    }
-
-    public static int GetLinearIndexSafe(int x, int y, int count) {
-        x = math.clamp(x, 0, count - 1);
-        y = math.clamp(y, 0, count - 1);
-        return y + x * count;
-    }
-
-    public static int2 ReverseLinearIndex(int index, int count) {
-        var y = index % count;
-        var x = index / count;
-        return new int2(x, y);
-    }
-}
-
-public static class UnsafeListHelper {
-
-    public static unsafe int AddWithIndex<T>(ref NativeList<T>.ParallelWriter list, in T element) where T : unmanaged {
-        var listData = list.ListData;
-        var idx = Interlocked.Increment(ref listData->m_length) - 1;
-        UnsafeUtility.WriteArrayElement(listData->Ptr, idx, element);
-
-        return idx;
-    }
-    public static unsafe void Add<T>(ref NativeList<T>.ParallelWriter list, in T element) where T : unmanaged {
-        var listData = list.ListData;
-        var idx = Interlocked.Increment(ref listData->m_length) - 1;
-        UnsafeUtility.WriteArrayElement(listData->Ptr, idx, element);
-    }
-    
-}
-
 [Serializable]
 public struct ProceduralGenerationSettings {
     public float NoiseScale;
@@ -117,6 +80,4 @@ public struct GridSettings {
     public float NormalReduceThreshold;
     public float HeightScale;
     public ushort CoreGridSpacing;
-    [Range(0, 150)]
-    public int test;
 }

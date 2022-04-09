@@ -10,7 +10,8 @@ using Debug = UnityEngine.Debug;
 
 public class MultiStageGenerator : MonoBehaviour {
     public bool reload;
-    public bool debugDraw;
+    public bool drawTriangles;
+    public bool drawPoints;
     public GridSettings settings;
     public ProceduralGenerationSettings proceduralGenerationSettings;
 
@@ -21,19 +22,28 @@ public class MultiStageGenerator : MonoBehaviour {
         }
     }
 
-    private List<(float3 a, float3 b, float3 c)> CachedTriangles = new List<(float3 a, float3 b, float3 c)>();
+    private List<(float3 a, float3 b, float3 c)> cachedTriangles = new List<(float3 a, float3 b, float3 c)>();
+    private List<NormalPassJob.VertexData> cachedPoints = new List<NormalPassJob.VertexData>();
 
     private void OnDrawGizmosSelected() {
+
+        if (drawPoints) {
+            Gizmos.color = Color.green;
+            foreach (var cachedPoint in cachedPoints) {
+                Gizmos.DrawRay(cachedPoint.Position, cachedPoint.Normal);
+            }
+        }
         
-        if (!debugDraw) return;
-        
-        foreach (var elem in CachedTriangles) {
-            var posA = elem.a + (float3) transform.position;
-            var posB = elem.b + (float3) transform.position;
-            var posC = elem.c + (float3) transform.position;
-            Gizmos.DrawLine(posA, posB);
-            Gizmos.DrawLine(posB, posC);
-            Gizmos.DrawLine(posC, posA);
+        if (drawTriangles) {
+            Gizmos.color = Color.cyan;
+            foreach (var elem in cachedTriangles) {
+                var posA = elem.a + (float3) transform.position;
+                var posB = elem.b + (float3) transform.position;
+                var posC = elem.c + (float3) transform.position;
+                Gizmos.DrawLine(posA, posB);
+                Gizmos.DrawLine(posB, posC);
+                Gizmos.DrawLine(posC, posA);
+            }
         }
     }
 
@@ -46,6 +56,8 @@ public class MultiStageGenerator : MonoBehaviour {
             return;
         }
 
+        // allocate a ton of memory for all output data
+        // lists are allocated to maximum possible length, even if it is not used most of the time, but we can't resize it when writing to it in parallel
         var heights = new NativeArray<half>(pointCountInitial, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
         var vertices = new NativeList<NormalPassJob.VertexData>(pointCountInitial, Allocator.TempJob);
         var triangles = new NativeList<int3>(triangleCountHalf * 2, Allocator.TempJob);
@@ -55,22 +67,18 @@ public class MultiStageGenerator : MonoBehaviour {
             var stopWatch = new Stopwatch();
             stopWatch.Start();
 
-            var heightJob = new HeightSampleJob {
+            var heightHandle = new HeightSampleJob {
                 settings = settings,
                 heights = heights,
                 generationSettings = proceduralGenerationSettings
-            };
+            }.Schedule(pointCountInitial, settings.Count);
 
-            var heightHandle = heightJob.Schedule(pointCountInitial, settings.Count);
-
-            var normalsJob = new NormalPassJob {
+            var normalsHandle = new NormalPassJob {
                 settings = settings,
                 heights = heights,
                 vertices = vertices.AsParallelWriter(),
                 pointToVertexReferences = pointToVertexRefs.AsParallelWriter()
-            };
-
-            var normalsHandle = normalsJob.Schedule(pointCountInitial, settings.Count, heightHandle);
+            }.Schedule(pointCountInitial, settings.Count, heightHandle);
 
             var patchCountPerLine = (settings.Count - 1) / settings.CoreGridSpacing;
             var patchCount = patchCountPerLine * patchCountPerLine;
@@ -110,10 +118,17 @@ public class MultiStageGenerator : MonoBehaviour {
             stopWatch.Stop();
             Debug.Log("Generation took: " + stopWatch.ElapsedMilliseconds + "ms or ticks: " + stopWatch.ElapsedTicks);
             
-            if (debugDraw) {
-                CachedTriangles.Clear();
+            if (drawPoints) {
+                cachedPoints.Clear();
+                foreach (var vertex in vertices) {
+                    cachedPoints.Add(vertex);
+                }
+            }
+
+            if (drawTriangles) {
+                cachedTriangles.Clear();
                 foreach (var triangle in triangles) {
-                    CachedTriangles.Add((vertices[triangle.x].Position, vertices[triangle.y].Position, vertices[triangle.z].Position));
+                    cachedTriangles.Add((vertices[triangle.x].Position, vertices[triangle.y].Position, vertices[triangle.z].Position));
                 }
             }
         }

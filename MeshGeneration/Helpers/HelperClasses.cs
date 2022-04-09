@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -49,4 +52,45 @@ public static class Geometry {
                   ((p4.z - p3.z) * (p2.x - p1.x) - (p4.x - p3.x) * (p2.z - p1.z));
         return tAb;
     }
+}
+
+
+
+public static class LinearArrayHelper {
+    public static int GetLinearIndex(int x, int y, int count) {
+        return y + x * count;
+    }
+    
+    public static int GetLinearIndex(int2 pos, int count) {
+        return pos.y + pos.x * count;
+    }
+
+    public static int GetLinearIndexSafe(int x, int y, int count) {
+        x = math.clamp(x, 0, count - 1);
+        y = math.clamp(y, 0, count - 1);
+        return y + x * count;
+    }
+
+    public static int2 ReverseLinearIndex(int index, int count) {
+        var y = index % count;
+        var x = index / count;
+        return new int2(x, y);
+    }
+}
+
+public static class UnsafeListHelper {
+
+    public static unsafe int AddWithIndex<T>(ref NativeList<T>.ParallelWriter list, in T element) where T : unmanaged {
+        var listData = list.ListData;
+        var idx = Interlocked.Increment(ref listData->m_length) - 1;
+        UnsafeUtility.WriteArrayElement(listData->Ptr, idx, element);
+
+        return idx;
+    }
+    public static unsafe void Add<T>(ref NativeList<T>.ParallelWriter list, in T element) where T : unmanaged {
+        var listData = list.ListData;
+        var idx = Interlocked.Increment(ref listData->m_length) - 1;
+        UnsafeUtility.WriteArrayElement(listData->Ptr, idx, element);
+    }
+    
 }

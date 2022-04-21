@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 
 // generates a grid of points, and calculates/stores heights for each point (scale 0-1)
 
@@ -25,7 +22,7 @@ public struct HeightSampleJob : IJobParallelFor {
         
         var localPosition = new float2(x * settings.Distance, y * settings.Distance);
         //var heightSample = getAdvPlanetGeneration(new float3(localPosition.x, 0f, localPosition.y), generationSettings.NoiseScale);
-        var heightSample = noise.snoise(localPosition * generationSettings.NoiseScale);
+        var heightSample = noise.snoise(localPosition / generationSettings.NoiseScale);
         //var heightSample = getFractalNoise(new float3(localPosition.x, 0, localPosition.y), 3, generationSettings.NoiseScale, 1f);
         heights[index] = (half) heightSample;
     }

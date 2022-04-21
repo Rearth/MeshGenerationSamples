@@ -49,6 +49,7 @@ public struct PatchTriangulationJob : IJobParallelFor {
         TriangulationMarker.Begin();
         var triangulation = SimpleBowyerWatson.Delaunay(ref patchVertices, (int) size, ref InvalidSearchMarker, ref EdgeComputeMarker, ref HoleTriangulationMarker);
         
+        // add triangles to global triangle list, while getting the correct global indices. 
         for (var i = 0; i < triangulation.Length; i++) {
             var triangle = triangulation[i];
             var indices = triangle.Indices;

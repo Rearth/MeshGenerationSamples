@@ -83,9 +83,6 @@ public class MultiStageGenerator : MonoBehaviour {
             var patchCountPerLine = (settings.Count - 1) / settings.CoreGridSpacing;
             var patchCount = patchCountPerLine * patchCountPerLine;
 
-            var meshData = Mesh.AllocateWritableMeshData(1);
-            var mainMesh = meshData[0];
-
             var triangulationHandle = new PatchTriangulationJob {
                 settings = settings,
                 vertexReferences = pointToVertexRefs,
@@ -97,6 +94,10 @@ public class MultiStageGenerator : MonoBehaviour {
                 HoleTriangulationMarker = new ProfilerMarker("HoleTriangulationMarker")
             }.Schedule(patchCount, 1, normalsHandle);
 
+
+            var meshData = Mesh.AllocateWritableMeshData(1);
+            var mainMesh = meshData[0];
+            
             var meshingHandle = new MeshPreparationJob {
                 meshData = mainMesh,
                 triangles = triangles.AsDeferredJobArray(),
@@ -107,11 +108,12 @@ public class MultiStageGenerator : MonoBehaviour {
             
             var indicesCount = triangles.Length * 3;
             mainMesh.subMeshCount = 1;
-            mainMesh.SetSubMesh(0, new SubMeshDescriptor(0, indicesCount), NoFlags());
+            mainMesh.SetSubMesh(0, new SubMeshDescriptor(0, indicesCount), NoCalculations());
+            
             var mesh = new Mesh {name = this.transform.name};
             var meshSize = settings.Count * settings.Distance;
             mesh.bounds = new Bounds(new Vector3(meshSize / 2, settings.HeightScale / 2, meshSize / 2), new Vector3(meshSize, settings.HeightScale, meshSize));
-            Mesh.ApplyAndDisposeWritableMeshData(meshData, mesh, NoFlags());
+            Mesh.ApplyAndDisposeWritableMeshData(meshData, mesh, NoCalculations());
 
             gameObject.GetComponent<MeshFilter>().mesh = mesh;
             
@@ -140,7 +142,7 @@ public class MultiStageGenerator : MonoBehaviour {
         }
     }
 
-    private static MeshUpdateFlags NoFlags() {
+    private static MeshUpdateFlags NoCalculations() {
         return MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontNotifyMeshUsers | MeshUpdateFlags.DontResetBoneBounds;
     }
 }

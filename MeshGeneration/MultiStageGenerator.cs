@@ -13,9 +13,12 @@ public class MultiStageGenerator : MonoBehaviour {
     public bool drawTriangles;
     public bool drawPoints;
     public GridSettings settings;
-    public ProceduralGenerationSettings proceduralGenerationSettings;
 
+    /*public TerrainStampParent stampCollector;
     private void OnValidate() {
+        
+        if (!this.gameObject.activeInHierarchy) return;
+        
         Generate();
         if (reload) {
             reload = false;
@@ -23,7 +26,7 @@ public class MultiStageGenerator : MonoBehaviour {
     }
 
     private List<(float3 a, float3 b, float3 c)> cachedTriangles = new List<(float3 a, float3 b, float3 c)>();
-    private List<NormalPassJob.VertexData> cachedPoints = new List<NormalPassJob.VertexData>();
+    private List<VertexPassJob.VertexData> cachedPoints = new List<VertexPassJob.VertexData>();
 
     private void OnDrawGizmosSelected() {
 
@@ -48,6 +51,9 @@ public class MultiStageGenerator : MonoBehaviour {
     }
 
     private void Generate() {
+        
+        if (!stampCollector.stamps.IsCreated) return;
+        
         var pointCountInitial = settings.Count * settings.Count;
         var triangleCountHalf = (settings.Count - 1) * (settings.Count - 1);
 
@@ -59,9 +65,14 @@ public class MultiStageGenerator : MonoBehaviour {
         // allocate a ton of memory for all output data
         // lists are allocated to maximum possible length, even if it is not used most of the time, but we can't resize it when writing to it in parallel
         var heights = new NativeArray<half>(pointCountInitial, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-        var vertices = new NativeList<NormalPassJob.VertexData>(pointCountInitial, Allocator.TempJob);
+        var vertices = new NativeList<VertexPassJob.VertexData>(pointCountInitial, Allocator.TempJob);
         var triangles = new NativeList<int3>(triangleCountHalf * 2, Allocator.TempJob);
         var pointToVertexRefs = new NativeHashMap<int2, int>(pointCountInitial, Allocator.TempJob);
+
+        var stamps = stampCollector.stamps;
+        var heightmap = stampCollector.heightmapData;
+        
+        var unscaledTerrainMatrix = float4x4.TRS(transform.position, transform.rotation, 1f);
 
         try {
             var stopWatch = new Stopwatch();
@@ -70,10 +81,12 @@ public class MultiStageGenerator : MonoBehaviour {
             var heightHandle = new HeightSampleJob {
                 settings = settings,
                 heights = heights,
-                generationSettings = proceduralGenerationSettings
+                stamps = stamps,
+                heightmap = heightmap,
+                terrainLTW = unscaledTerrainMatrix
             }.Schedule(pointCountInitial, settings.Count);
 
-            var normalsHandle = new NormalPassJob {
+            var normalsHandle = new VertexPassJob {
                 settings = settings,
                 heights = heights,
                 vertices = vertices.AsParallelWriter(),
@@ -111,9 +124,12 @@ public class MultiStageGenerator : MonoBehaviour {
             mainMesh.SetSubMesh(0, new SubMeshDescriptor(0, indicesCount), NoCalculations());
             
             var mesh = new Mesh {name = this.transform.name};
-            var meshSize = settings.Count * settings.Distance;
+            var meshSize = settings.Count * 1f;
             mesh.bounds = new Bounds(new Vector3(meshSize / 2, settings.HeightScale / 2, meshSize / 2), new Vector3(meshSize, settings.HeightScale, meshSize));
             Mesh.ApplyAndDisposeWritableMeshData(meshData, mesh, NoCalculations());
+            mesh.RecalculateBounds();
+            //mesh.RecalculateNormals();
+            //mesh.RecalculateTangents();
 
             gameObject.GetComponent<MeshFilter>().mesh = mesh;
             
@@ -144,5 +160,5 @@ public class MultiStageGenerator : MonoBehaviour {
 
     private static MeshUpdateFlags NoCalculations() {
         return MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices | MeshUpdateFlags.DontNotifyMeshUsers | MeshUpdateFlags.DontResetBoneBounds;
-    }
+    }*/
 }

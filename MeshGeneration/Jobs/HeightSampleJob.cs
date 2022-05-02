@@ -4,6 +4,10 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Physics;
+using Unity.Transforms;
+using UnityEngine;
+// ReSharper disable ForCanBeConvertedToForeach
 
 // generates a grid of points, and calculates/stores heights for each point (scale 0-1)
 
@@ -12,69 +16,97 @@ public struct HeightSampleJob : IJobParallelFor {
     // index is based on position X/Y. No need to store/output positions, since they are directly computed again
     [WriteOnly] public NativeArray<half> heights;
 
-    public GridSettings settings;
-    public ProceduralGenerationSettings generationSettings;
+    [ReadOnly] public NativeArray<TerrainStampData> stamps;
+    [ReadOnly] public NativeArray<ushort> heightmapLinear;
+    [ReadOnly] public NativeHashMap<ushort, uint> beginIndices;
+    [ReadOnly] public float4x4 terrainLTW;
+
+    public TerrainSharedData settings;
+    public TerrainInstanceData instanceData;
 
     public void Execute(int index) {
-        var revIndex = LinearArrayHelper.ReverseLinearIndex(index, settings.Count);
+        var revIndex = LinearArrayHelper.ReverseLinearIndex(index, settings.VertexCount);
         var x = revIndex.x;
         var y = revIndex.y;
+
+        // calculate ray to intersect with stamps
+        // iterate through stamp candidates, get intersection point with ray, calculate uv based on intersection point, sample if uv in 0-1 range
+
+        var pointOnSphere = GetSphereDirection(x, y, settings, in instanceData);
         
-        var localPosition = new float2(x * settings.Distance, y * settings.Distance);
-        //var heightSample = getAdvPlanetGeneration(new float3(localPosition.x, 0f, localPosition.y), generationSettings.NoiseScale);
-        var heightSample = noise.snoise(localPosition / generationSettings.NoiseScale);
-        //var heightSample = getFractalNoise(new float3(localPosition.x, 0, localPosition.y), 3, generationSettings.NoiseScale, 1f);
+        var heightSample = SampleFromStamps(pointOnSphere);
         heights[index] = (half) heightSample;
     }
-    
-    [BurstCompile]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static float getAdvPlanetGeneration(in float3 pos, in float frequency) {
 
-        var res = 0f;
+    private static float3 GetSphereDirection(in int x, in int y, in TerrainSharedData settings, in TerrainInstanceData instanceData) {
 
-        var baseElevation = getFractalNoise(pos, 2, frequency * 4, 1) + 0.5f;
-        baseElevation *= 0.3f;
+        var uvSize = instanceData.UVSize;
+        var uvStartPos = instanceData.UVStart;
+        var vertexDist = uvSize * 2f / (settings.VertexCount - 1);
+        
+        var localFlatPosition = new float3(x * vertexDist - 1 + uvStartPos.x * 2f, 1,  y * vertexDist - 1 + uvStartPos.y * 2f);
+        var sphereCenter = new float3(0, 0, 0);
+        var sphereRadius = settings.PlanetRadius;
 
-        var ridges = 1 - getFractalNoise(pos, 2, frequency * 2, 1) + 0.5f;
-        ridges *= 0.4f;
-
-        var simplex = getFractalNoise(pos, 5, frequency, 1) * 1.1f + 0.2f;
-        var simplexMask = getFractalNoise(pos + new float3(0, 500f, 0), 1, frequency * 4, 1) * 1.2f + 0.7f;
-        simplex *= simplexMask;
-        res += baseElevation + ridges + simplex * 0.5f - 0.3f;
-
-        return res;
-
+        return Geometry.TransformPointFlatToSphere(in localFlatPosition, in sphereCenter, sphereRadius);
     }
-    
-    [BurstCompile]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static float getFractalNoise(in float3 pos, int octaves, float frequency, float amplitude) {
-        float sum = 0;
-        float gain = 1;
 
-        for (int i = 0; i < octaves; i++) {
-            //sum += noise.snoise(pos * gain / frequency) * amplitude / gain;
-            var posNoise = pos * gain / frequency;
-            sum += noise.snoise(posNoise) * amplitude / gain;
-            gain *= 2;
+    private float SampleFromStamps(in float3 pointOnSphere) {
+
+        var combinedHeight = 0f;
+        
+        for (var i = 0; i < stamps.Length; i++) {
+            var stampData = stamps[i];
+
+            var sphereDirection = math.normalize(pointOnSphere);
+
+            var stampLTWCorrected = math.mul(math.fastinverse(terrainLTW), stampData.LTW);
+
+            var plane = new LocalToWorld {Value = stampLTWCorrected};
+
+            if (math.dot(sphereDirection, plane.Up) <= 0) continue;
+            var intersectionPoint = Geometry.PlaneRaycast(plane.Position, plane.Up, float3.zero, sphereDirection);
+
+            var pointInStampSpace = Geometry.TransformPositionInverse(intersectionPoint, plane.Value).xz;
+            var stampUVPos = ToStampUVCoords(pointInStampSpace, stampData.Stamp.Extends);
+            
+            if (!IsInStamp(stampUVPos)) continue;
+
+            var heightmap = GetHeightmapFromStack(stampData.Stamp.TextureID, stampData.Stamp.TextureSize * stampData.Stamp.TextureSize, in beginIndices, in heightmapLinear);
+            
+            var sampledHeight = NativeTextureHelper.SampleTextureBilinear(ref heightmap, stampData.Stamp.TextureSize, stampUVPos);
+            combinedHeight += sampledHeight;
         }
 
-        return sum;
+        return combinedHeight;
+    }
+
+    private static NativeSlice<ushort> GetHeightmapFromStack(in ushort id, in int length, in NativeHashMap<ushort, uint> beginIndices, in NativeArray<ushort> stack) {
+        var startAt = beginIndices[id];
+        var slice = stack.Slice((int) startAt, length);
+        return slice;
+    }
+
+    private static float2 ToStampUVCoords(in float2 point, in float stampExtends) {
+        return point / stampExtends / 2f + 0.5f;
+    }
+
+    private static bool IsInStamp(in float2 point) {
+        return (math.all(point >= 0f) && math.all(point < 1f));
     }
 }
 
 [Serializable]
-public struct ProceduralGenerationSettings {
-    public float NoiseScale;
+public struct TerrainStampData {
+    public float4x4 LTW;
+    public HeightmapStamp Stamp;
 }
 
 [Serializable]
 public struct GridSettings {
     public ushort Count;
-    public float Distance;
     public float NormalReduceThreshold;
     public float HeightScale;
+    public float PlanetRadius;
     public ushort CoreGridSpacing;
 }

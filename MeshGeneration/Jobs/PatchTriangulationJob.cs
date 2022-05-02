@@ -7,7 +7,7 @@ using Unity.Profiling;
 [BurstCompile]
 public struct PatchTriangulationJob : IJobParallelFor {
 
-    public GridSettings settings;
+    public TerrainSharedData settings;
 
     [ReadOnly] public NativeHashMap<int2, int> vertexReferences;
 
@@ -24,20 +24,20 @@ public struct PatchTriangulationJob : IJobParallelFor {
         
         VertexGatherMarker.Begin();
         
-        var patchCountPerLine = (settings.Count - 1) / settings.CoreGridSpacing;
-        var patchPosition = LinearArrayHelper.ReverseLinearIndex(patchIndex, patchCountPerLine);
+        var patchVertexCountPerLine = (settings.VertexCount - 1) / settings.CoreGridSpacing;
+        var patchPosition = LinearArrayHelper.ReverseLinearIndex(patchIndex, patchVertexCountPerLine);
 
-        var patchLineVertCount = (settings.Count - 1) / patchCountPerLine;
+        var patchLineVertVertexCount = (settings.VertexCount - 1) / patchVertexCountPerLine;
 
-        var startVertex = patchPosition * patchLineVertCount;
+        var startVertex = patchPosition * patchLineVertVertexCount;
 
-        var patchVertices = new NativeList<int2>(patchLineVertCount * patchLineVertCount / 2, Allocator.Temp);
+        var patchVertices = new NativeList<int2>(patchLineVertVertexCount * patchLineVertVertexCount / 2, Allocator.Temp);
 
-        var size = math.length(new int2(patchLineVertCount + 1));
+        var size = math.length(new int2(patchLineVertVertexCount + 1));
 
         // get all non-skipped vertices
-        for (int x = startVertex.x; x < startVertex.x + patchLineVertCount + 1; x++) {
-            for (int y = startVertex.y; y < startVertex.y + patchLineVertCount + 1; y++) {
+        for (int x = startVertex.x; x < startVertex.x + patchLineVertVertexCount + 1; x++) {
+            for (int y = startVertex.y; y < startVertex.y + patchLineVertVertexCount + 1; y++) {
                 var candidatePos = new int2(x, y);
                 var isValid = vertexReferences.ContainsKey(candidatePos);
                 if (isValid) patchVertices.Add(candidatePos);

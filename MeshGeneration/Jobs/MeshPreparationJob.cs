@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 public struct MeshPreparationJob : IJob {
     [WriteOnly] public Mesh.MeshData meshData;
 
-    [ReadOnly] public NativeArray<NormalPassJob.VertexData> vertices;
+    [ReadOnly] public NativeArray<VertexPassJob.VertexData> vertices;
     [ReadOnly] public NativeArray<int3> triangles;
 
     public void Execute() {
@@ -21,7 +21,7 @@ public struct MeshPreparationJob : IJob {
         
         meshData.SetVertexBufferParams(vertices.Length, attributes);
 
-        var meshVerts = meshData.GetVertexData<NormalPassJob.VertexData>();
+        var meshVerts = meshData.GetVertexData<VertexPassJob.VertexData>();
         meshVerts.CopyFrom(vertices);
 
         var meshTris = meshData.GetIndexData<int>();

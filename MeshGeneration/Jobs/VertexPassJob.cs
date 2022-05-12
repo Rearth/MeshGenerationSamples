@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System.Runtime.CompilerServices;
+using System.Threading;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -28,7 +29,7 @@ public struct VertexPassJob : IJobParallelFor {
         var uvStartPos = uvData.UVStart;
         var vertexDist = uvSize * 2f / (settings.VertexCount - 1);
 
-        var ownHeight = heights[index];
+        var ownHeight = SampleHeight(x, y);
         CalculateNormalSet(ownHeight, x, y, vertexDist, out var normalA, out var normalB);
 
         var normal = math.normalize(normalA + normalB);
@@ -59,25 +60,27 @@ public struct VertexPassJob : IJobParallelFor {
 
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private float SampleHeight(in int x, in int y) {
+        var index = LinearArrayHelper.GetLinearIndex(x + 1, y + 1, settings.VertexCount + 2);
+        return heights[index];
+    }
+
     private void CalculateNormalSet(in float ownHeight, in int x, in int y, float vertexDist, out float3 normalA, out float3 normalB) {
         var normalCalculationHeightScale = 1 / settings.PlanetRadius;
 
         var centerPos = new float3(0, ownHeight * settings.HeightScale * normalCalculationHeightScale, 0);
 
-        var sampleAIndex = LinearArrayHelper.GetLinearIndexSafe(x - 1, y, settings.VertexCount);
-        var sampleA = heights[sampleAIndex] * settings.HeightScale * normalCalculationHeightScale;
+        var sampleA = SampleHeight(x - 1, y) * settings.HeightScale * normalCalculationHeightScale;
         var posA = new float3(-vertexDist, sampleA, 0);
 
-        var sampleBIndex = LinearArrayHelper.GetLinearIndexSafe(x + 1, y, settings.VertexCount);
-        var sampleB = heights[sampleBIndex] * settings.HeightScale * normalCalculationHeightScale;
+        var sampleB = SampleHeight(x + 1, y) * settings.HeightScale * normalCalculationHeightScale;
         var posB = new float3(vertexDist, sampleB, 0);
 
-        var sampleCIndex = LinearArrayHelper.GetLinearIndexSafe(x, y - 1, settings.VertexCount);
-        var sampleC = heights[sampleCIndex] * settings.HeightScale * normalCalculationHeightScale;
+        var sampleC = SampleHeight(x, y - 1) * settings.HeightScale * normalCalculationHeightScale;
         var posC = new float3(0, sampleC, -vertexDist);
 
-        var sampleDIndex = LinearArrayHelper.GetLinearIndexSafe(x, y + 1, settings.VertexCount);
-        var sampleD = heights[sampleDIndex] * settings.HeightScale * normalCalculationHeightScale;
+        var sampleD = SampleHeight(x, y + 1) * settings.HeightScale * normalCalculationHeightScale;
         var posD = new float3(0, sampleD, vertexDist);
 
         normalA = math.cross(posC - centerPos, posA - centerPos);

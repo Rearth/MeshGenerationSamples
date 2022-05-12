@@ -25,9 +25,9 @@ public struct HeightSampleJob : IJobParallelFor {
     public TerrainUVData uvData;
 
     public void Execute(int index) {
-        var revIndex = LinearArrayHelper.ReverseLinearIndex(index, settings.VertexCount);
-        var x = revIndex.x;
-        var y = revIndex.y;
+        var revIndex = LinearArrayHelper.ReverseLinearIndex(index, settings.VertexCount + 2);   // sample one height to left and right aswell for normals, thus +2
+        var x = revIndex.x - 1;
+        var y = revIndex.y - 1;
 
         // calculate ray to intersect with stamps
         // iterate through stamp candidates, get intersection point with ray, calculate uv based on intersection point, sample if uv in 0-1 range

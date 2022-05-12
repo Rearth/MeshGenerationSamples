@@ -7,7 +7,7 @@ using Unity.Profiling;
 [BurstCompile]
 public struct PatchTriangulationJob : IJobParallelFor {
 
-    public TerrainSharedData settings;
+    public TerrainStaticData settings;
 
     [ReadOnly] public NativeHashMap<int2, int> vertexReferences;
 

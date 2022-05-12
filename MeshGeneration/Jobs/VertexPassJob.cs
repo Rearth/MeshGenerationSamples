@@ -9,9 +9,9 @@ using UnityEngine;
 [BurstCompile]
 public struct VertexPassJob : IJobParallelFor {
     
-    [ReadOnly] public NativeArray<half> heights;
-    public TerrainSharedData settings;
-    public TerrainInstanceData instanceData;
+    [DeallocateOnJobCompletion][ReadOnly] public NativeArray<float> heights;
+    public TerrainStaticData settings;
+    public TerrainUVData uvData;
 
     [WriteOnly] public NativeList<VertexData>.ParallelWriter vertices;
     [WriteOnly] public NativeHashMap<int2, int>.ParallelWriter pointToVertexReferences;
@@ -24,8 +24,8 @@ public struct VertexPassJob : IJobParallelFor {
 
         var isEdge = x == 0 || x == settings.VertexCount - 1 || y == 0 || y == settings.VertexCount - 1;
 
-        var uvSize = instanceData.UVSize;
-        var uvStartPos = instanceData.UVStart;
+        var uvSize = uvData.UVSize;
+        var uvStartPos = uvData.UVStart;
         var vertexDist = uvSize * 2f / (settings.VertexCount - 1);
 
         var ownHeight = heights[index];
@@ -59,7 +59,7 @@ public struct VertexPassJob : IJobParallelFor {
 
     }
 
-    private void CalculateNormalSet(in half ownHeight, in int x, in int y, float vertexDist, out float3 normalA, out float3 normalB) {
+    private void CalculateNormalSet(in float ownHeight, in int x, in int y, float vertexDist, out float3 normalA, out float3 normalB) {
         var normalCalculationHeightScale = 1 / settings.PlanetRadius;
 
         var centerPos = new float3(0, ownHeight * settings.HeightScale * normalCalculationHeightScale, 0);

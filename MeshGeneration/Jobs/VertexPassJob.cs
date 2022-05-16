@@ -10,7 +10,7 @@ using UnityEngine;
 [BurstCompile]
 public struct VertexPassJob : IJobParallelFor {
     
-    [DeallocateOnJobCompletion][ReadOnly] public NativeArray<float> heights;
+    [ReadOnly] public NativeArray<HeightSample> heights;
     public TerrainStaticData settings;
     public TerrainUVData uvData;
 
@@ -63,7 +63,7 @@ public struct VertexPassJob : IJobParallelFor {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private float SampleHeight(in int x, in int y) {
         var index = LinearArrayHelper.GetLinearIndex(x + 1, y + 1, settings.VertexCount + 2);
-        return heights[index];
+        return heights[index].Height;
     }
 
     private void CalculateNormalSet(in float ownHeight, in int x, in int y, float vertexDist, out float3 normalA, out float3 normalB) {

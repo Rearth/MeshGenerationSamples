@@ -1,5 +1,6 @@
 ﻿using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -8,6 +9,7 @@ using UnityEngine.Rendering;
 [BurstCompile]
 public struct MeshPreparationJob : IJob {
     [WriteOnly] public Mesh.MeshData meshData;
+    [NativeDisableContainerSafetyRestriction]
     [WriteOnly] public NativeArray<float3> meshCalculations; //min is at index 0, max at index 1, indices count is 2.x
 
     [ReadOnly] public NativeArray<VertexPassJob.VertexData> vertices;

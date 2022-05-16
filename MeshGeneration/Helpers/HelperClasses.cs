@@ -170,6 +170,7 @@ public static class LinearArrayHelper {
 }
 
 public static class UnsafeListHelper {
+    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe int AddWithIndex<T>(ref NativeList<T>.ParallelWriter list, in T element) where T : unmanaged {
         var listData = list.ListData;

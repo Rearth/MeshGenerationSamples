@@ -185,4 +185,17 @@ public static class UnsafeListHelper {
         var idx = Interlocked.Increment(ref listData->m_length) - 1;
         UnsafeUtility.WriteArrayElement(listData->Ptr, idx, element);
     }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ref T GetRef<T>(this NativeArray<T> array, int index)
+        where T : struct
+    {
+        // You might want to validate the index first, as the unsafe method won't do that.
+        if (index < 0 || index >= array.Length)
+            throw new ArgumentOutOfRangeException(nameof(index));
+        unsafe
+        {
+            return ref UnsafeUtility.ArrayElementAsRef<T>(array.GetUnsafePtr(), index);
+        }
+    }
 }

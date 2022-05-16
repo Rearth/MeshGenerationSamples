@@ -75,7 +75,7 @@ public struct HeightSampleJob : IJobParallelFor {
             var heightmap = GetHeightmapFromStack(stampData.Stamp.TextureID, stampData.Stamp.TextureSize * stampData.Stamp.TextureSize, in beginIndices, in heightmapLinear);
             
             var sampledHeight = NativeTextureHelper.SampleTextureBilinear(ref heightmap, stampData.Stamp.TextureSize, stampUVPos);
-            combinedHeight += sampledHeight;
+            combinedHeight += sampledHeight * stampData.Stamp.HeightScale;
         }
 
         return combinedHeight;

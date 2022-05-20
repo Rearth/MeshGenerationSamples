@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using Unity.Assertions;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using Unity.Physics;
 using Unity.Transforms;
-using UnityEditor.PackageManager.UI;
-using UnityEngine;
 
 // ReSharper disable ForCanBeConvertedToForeach
 
@@ -37,11 +33,11 @@ public struct HeightSampleJob : IJobParallelFor {
 
         var pointOnSphere = GetSphereDirection(x, y, settings, in uvData);
 
-        var heightSample = SampleFromStamps(pointOnSphere, out var stampCount);
-        heights[index] = new HeightSample{ Height = heightSample, StampCount = stampCount};
+        var heightSample = SampleFromStamps(pointOnSphere);
+        heights[index] = heightSample;
     }
 
-    private static float3 GetSphereDirection(in int x, in int y, in TerrainStaticData settings, in TerrainUVData uvData) {
+    public static float3 GetSphereDirection(in int x, in int y, in TerrainStaticData settings, in TerrainUVData uvData) {
         var uvSize = uvData.UVSize;
         var uvStartPos = uvData.UVStart;
         var vertexDist = uvSize * 2f / (settings.VertexCount - 1);
@@ -53,9 +49,12 @@ public struct HeightSampleJob : IJobParallelFor {
         return Geometry.TransformPointFlatToSphere(in localFlatPosition, in sphereCenter, sphereRadius);
     }
 
-    private float SampleFromStamps(in float3 pointOnSphere, out ushort stampCount) {
+    private HeightSample SampleFromStamps(in float3 pointOnSphere) {
         var combinedHeight = settings.StartHeight;
-        stampCount = 0;
+        var stampCount = 0;
+
+        var temperature = 0.5;
+        var humidity = 0.5;
 
         for (var i = 0; i < stamps.Length; i++) {
             var stampData = stamps[i];
@@ -77,16 +76,32 @@ public struct HeightSampleJob : IJobParallelFor {
             stampCount++;
 
             var heightmap = GetHeightmapFromStack(stampData.Stamp.TextureID, stampData.Stamp.TextureSize * stampData.Stamp.TextureSize, in beginIndices, in heightmapLinear);
-
             var sampledHeight = NativeTextureHelper.SampleTextureBilinear(ref heightmap, stampData.Stamp.TextureSize, stampUVPos);
 
             var heightInfluence = SampleFalloffCurve(stampUVPos);
             var combinedInfluence = math.min(heightInfluence.x, heightInfluence.y);
 
-            combinedHeight = BlendStamp(in combinedHeight, in sampledHeight, in combinedInfluence, in stampData.Stamp);
+            if (stampData.Stamp.BlendMode == HeightmapStamp.BlendType.BiomeOnly) {
+                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight;
+                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight;
+                humidity += sampledHumidity;
+                temperature += sampledTemperature;
+            }
+            else {
+                // ranges -1 : 1, to allow increasing or decreasing. Resulting value of position is clamped to 0-1
+                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence;
+                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence;
+                humidity += sampledHumidity;
+                temperature += sampledTemperature;
+
+                combinedHeight = BlendStamp(in combinedHeight, in sampledHeight, in combinedInfluence, in stampData.Stamp);
+            }
         }
 
-        return combinedHeight;
+        temperature = math.clamp(temperature, 0, 1);
+        humidity = math.clamp(humidity, 0, 1);
+
+        return new HeightSample {Height = combinedHeight, BiomeData = new half2(new half(temperature), new half(humidity)), StampCount = (ushort) stampCount};
     }
 
     private static float BlendStamp(in float lastHeight, in float stampSample, in float falloff, in HeightmapStamp stamp) {
@@ -142,6 +157,7 @@ public struct HeightSampleJob : IJobParallelFor {
 
 public struct HeightSample {
     public float Height;
+    public half2 BiomeData; // X = temperature, Y = humidity
     public ushort StampCount;
 }
 

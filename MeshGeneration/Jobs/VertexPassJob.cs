@@ -50,9 +50,12 @@ public struct VertexPassJob : IJobParallelFor {
         var sphereRot = Geometry.FromToRotation(Vector3.up, localPosition);
         var sphereNormal = math.mul(sphereRot, normal);
 
+        var biomeSample = SampleBiome(x, y);
+
         var data = new VertexData {
             Normal = sphereNormal,
             Position = localPosition,
+            Color = biomeSample
         };
 
         var idx = UnsafeListHelper.AddWithIndex(ref vertices, in data);
@@ -64,6 +67,12 @@ public struct VertexPassJob : IJobParallelFor {
     private float SampleHeight(in int x, in int y) {
         var index = LinearArrayHelper.GetLinearIndex(x + 1, y + 1, settings.VertexCount + 2);
         return heights[index].Height;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private half2 SampleBiome(in int x, in int y) {
+        var index = LinearArrayHelper.GetLinearIndex(x + 1, y + 1, settings.VertexCount + 2);
+        return heights[index].BiomeData;
     }
 
     private void CalculateNormalSet(in float ownHeight, in int x, in int y, float vertexDist, out float3 normalA, out float3 normalB) {
@@ -91,9 +100,6 @@ public struct VertexPassJob : IJobParallelFor {
     public struct VertexData {
         public float3 Position;
         public float3 Normal;
-
-        public override string ToString() {
-            return $"{nameof(Normal)}: {Normal}";
-        }
+        public half2 Color;
     }
 }

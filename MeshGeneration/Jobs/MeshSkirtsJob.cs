@@ -14,11 +14,17 @@ public struct MeshSkirtsJob : IJob {
 
     public NativeList<VertexPassJob.VertexData> vertices;
 
+    private float3 GetDownDirection() {
+        var position = settings.VertexCount / 2;
+        var posOnSphere = HeightSampleJob.GetSphereDirection(position, position, settings, uvData);
+        return math.normalize(-posOnSphere);
+    }
+
     // it would be great to use delegates/function pointers for this, as the four direction actually only differ by 1 line.
     // However, this is not even remotely as performant, so this code duplication is the best way to go currently
     public void Execute() {
-        var skirtSize = uvData.UVSize * settings.PlanetRadius * settings.HeightScale / settings.VertexCount / 50f;
-        var offset = new float3(0, -skirtSize, 0);
+        var skirtSize = uvData.UVSize * settings.PlanetRadius * settings.HeightScale / settings.VertexCount / 40f;
+        var offset = GetDownDirection() * skirtSize;
         
         // skirt top
         var firstPoint = new int2(0, 0);

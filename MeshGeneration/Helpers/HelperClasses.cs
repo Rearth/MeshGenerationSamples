@@ -9,6 +9,11 @@ using Unity.Mathematics;
 using UnityEngine;
 
 public static class Geometry {
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float Max(in float3 input) {
+        return math.max(math.max(input.x, input.y), input.z);
+    }
     
     // basically world to local
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

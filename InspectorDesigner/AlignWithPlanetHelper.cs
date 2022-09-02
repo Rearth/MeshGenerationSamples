@@ -1,7 +1,5 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using Unity.Mathematics;
+#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 public class AlignWithPlanetHelper : MonoBehaviour {
@@ -18,6 +16,13 @@ public class AlignWithPlanetHelper : MonoBehaviour {
             var pos = planetCenter - dir * planetRadius * 1.00001f;
             transform.up = -dir;
             transform.position = pos;
+
+            EditorSceneManager.MarkSceneDirty(this.gameObject.scene);
         }
     }
+
+    private void Start() {
+        this.gameObject.SetActive(false);
+    }
 }
+#endif

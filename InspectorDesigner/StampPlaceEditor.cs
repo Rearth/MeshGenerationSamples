@@ -2,11 +2,14 @@
 using System;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 public class StampPlaceEditor : EditorWindow {
     private bool placementActive;
     private StampParent stampParent;
     private GameObject activePreview;
+
+    private PreviewWindowProperties properties;
 
     private static StampPlaceEditor instance;
 
@@ -21,6 +24,7 @@ public class StampPlaceEditor : EditorWindow {
         var window = (StampPlaceEditor) GetWindow(typeof(StampPlaceEditor));
         window.Show();
         window.stampParent = parent;
+        window.properties = CreateInstance<PreviewWindowProperties>();
 
         SceneView.beforeSceneGui += testAction;
         instance = window;
@@ -33,14 +37,22 @@ public class StampPlaceEditor : EditorWindow {
     }
 
     private void OnGUI() {
+
+        var serializedObject = new SerializedObject(properties);
+        var serializedTexture = serializedObject.FindProperty("stamp");
+        
         EditorGUI.BeginDisabledGroup(placementActive);
 
+        EditorGUILayout.PropertyField(serializedTexture, false);
+        
         if (GUILayout.Button("Add stamp")) {
             placementActive = true;
             CreatePreview();
         }
 
         EditorGUI.EndDisabledGroup();
+
+        serializedObject.ApplyModifiedProperties();
     }
 
     private void ProcessEvent(Event e) {
@@ -79,6 +91,9 @@ public class StampPlaceEditor : EditorWindow {
 
         var preview = GameObject.Instantiate(stampParent.stampPrefab);
         activePreview = preview;
+        activePreview.GetComponent<StampTextureAuthoring>().stamp = properties.stamp;
+        activePreview.GetComponent<StampTextureAuthoring>().OnValidate();
+        preview.name = properties.stamp.name;
     }
 
     private void PlaceDownPreview() {
@@ -86,6 +101,10 @@ public class StampPlaceEditor : EditorWindow {
         EditorUtility.SetDirty(activePreview.transform);
         Selection.activeObject = activePreview;
         activePreview = null;
+    }
+    
+    private class PreviewWindowProperties : ScriptableObject {
+        public Texture2D stamp;
     }
 }
 #endif

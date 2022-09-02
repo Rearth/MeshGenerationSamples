@@ -33,7 +33,7 @@ public struct HeightSampleJob : IJobParallelFor {
 
         var pointOnSphere = GetSphereDirection(x, y, settings, in uvData);
 
-        var heightSample = SampleFromStamps(pointOnSphere);
+        var heightSample = SampleFromStamps(pointOnSphere, in settings, in stamps, in heightmapLinear, in beginIndices, in terrainLTW);
         heights[index] = heightSample;
     }
 
@@ -49,7 +49,8 @@ public struct HeightSampleJob : IJobParallelFor {
         return Geometry.TransformPointFlatToSphere(in localFlatPosition, in sphereCenter, sphereRadius);
     }
 
-    private HeightSample SampleFromStamps(in float3 pointOnSphere) {
+    public static HeightSample SampleFromStamps(in float3 pointOnSphere, in TerrainStaticData settings, in NativeArray<TerrainStampData> stamps, in NativeArray<ushort> heightmapLinear, 
+        in NativeHashMap<ushort, uint> beginIndices, in float4x4 terrainLTW) {
         var combinedHeight = settings.StartHeight;
         var stampCount = 0;
 
@@ -104,7 +105,7 @@ public struct HeightSampleJob : IJobParallelFor {
         return new HeightSample {Height = combinedHeight, BiomeData = new half2(new half(temperature), new half(humidity)), StampCount = (ushort) stampCount};
     }
 
-    private static float BlendStamp(in float lastHeight, in float stampSample, in float falloff, in HeightmapStamp stamp) {
+    public static float BlendStamp(in float lastHeight, in float stampSample, in float falloff, in HeightmapStamp stamp) {
 
         var stampHeight = stampSample * stamp.HeightScale * falloff + stamp.HeightOffset;
         
@@ -127,30 +128,30 @@ public struct HeightSampleJob : IJobParallelFor {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static NativeSlice<ushort> GetHeightmapFromStack(in ushort id, in int length, in NativeHashMap<ushort, uint> beginIndices, in NativeArray<ushort> stack) {
+    public static NativeSlice<ushort> GetHeightmapFromStack(in ushort id, in int length, in NativeHashMap<ushort, uint> beginIndices, in NativeArray<ushort> stack) {
         var startAt = beginIndices[id];
         var slice = stack.Slice((int) startAt, length);
         return slice;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static float2 ToStampUVCoords(in float2 point, in float stampExtends) {
+    public static float2 ToStampUVCoords(in float2 point, in float stampExtends) {
         return point / stampExtends / 2f + 0.5f;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsInStamp(in float2 point) {
+    public static bool IsInStamp(in float2 point) {
         return (math.all(point >= 0f) && math.all(point < 1f));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static float2 SampleFalloffCurve(in float2 origin) {
+    public static float2 SampleFalloffCurve(in float2 origin) {
         return new float2(math.min(SampleFalloffCurve(1 - origin.x), SampleFalloffCurve(origin.x)), math.min(SampleFalloffCurve(1 - origin.y), SampleFalloffCurve(origin.y)));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     // x is in range 0-1, return influence from 1-0
-    private static float SampleFalloffCurve(in float x) {
+    public static float SampleFalloffCurve(in float x) {
         return 1f - (0.00001322098f / -13.86292f) * (1 - math.pow(math.E, (13.86292f * x)));
     }
 }
@@ -159,6 +160,10 @@ public struct HeightSample {
     public float Height;
     public half2 BiomeData; // X = temperature, Y = humidity
     public ushort StampCount;
+
+    public override string ToString() {
+        return $"{nameof(Height)}: {Height}, {nameof(BiomeData)}: {BiomeData}, {nameof(StampCount)}: {StampCount}";
+    }
 }
 
 [Serializable]

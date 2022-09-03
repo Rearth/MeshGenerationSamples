@@ -1,13 +1,12 @@
 #if UNITY_EDITOR
+using Unity.Entities;
 using UnityEngine;
 
 [ExecuteInEditMode]
 public class StampParent : MonoBehaviour {
-    
     public bool openWindow;
 
-    [Space]
-    public GameObject stampPrefab;
+    [Space] public GameObject stampPrefab;
 
     private void OnValidate() {
         if (openWindow) {

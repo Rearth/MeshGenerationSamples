@@ -1,5 +1,6 @@
 ﻿#if UNITY_EDITOR
 using System;
+using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -8,7 +9,9 @@ public class StampPlaceEditor : EditorWindow {
     private bool placementActive;
     private StampParent stampParent;
     private GameObject activePreview;
-
+    private float yRotation = 0f;
+    private float2 lastPosition = 0f;
+    
     private PreviewWindowProperties properties;
 
     private static StampPlaceEditor instance;
@@ -60,12 +63,21 @@ public class StampPlaceEditor : EditorWindow {
             e.Use();
             MouseDownPressed(e);
         }
-        else if (e.type == EventType.MouseMove && placementActive) {
+        else if ((e.type == EventType.MouseMove || e.type == EventType.MouseDrag) && placementActive) {
             MouseMoved(e);
+        } else if (e.type == EventType.ScrollWheel && placementActive) {
+            e.Use();
+            MouseScrolled(e);
         }
     }
 
+    private void MouseScrolled(Event e) {
+        var scrollAmount = e.delta;
+        activePreview.transform.localScale *= 1 + (scrollAmount.y * 0.05f);
+    }
+
     private void MouseMoved(Event e) {
+        
         var mousePos = e.mousePosition;
         var ppp = EditorGUIUtility.pixelsPerPoint;
 
@@ -77,11 +89,11 @@ public class StampPlaceEditor : EditorWindow {
         if (Physics.Raycast(ray, out var hit, Mathf.Infinity)) {
             activePreview.transform.position = hit.point;
             activePreview.transform.up = hit.normal;
+            activePreview.transform.Rotate(Vector3.up, yRotation, Space.Self);
         }
     }
 
     private void MouseDownPressed(Event e) {
-        Debug.Log("mouse down");
         placementActive = false;
         PlaceDownPreview();
     }
@@ -101,6 +113,8 @@ public class StampPlaceEditor : EditorWindow {
         EditorUtility.SetDirty(activePreview.transform);
         Selection.activeObject = activePreview;
         activePreview = null;
+        yRotation = 0f;
+        lastPosition = 0f;
     }
     
     private class PreviewWindowProperties : ScriptableObject {

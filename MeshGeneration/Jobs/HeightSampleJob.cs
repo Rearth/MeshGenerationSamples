@@ -90,8 +90,8 @@ public struct HeightSampleJob : IJobParallelFor {
             }
             else {
                 // ranges -1 : 1, to allow increasing or decreasing. Resulting value of position is clamped to 0-1
-                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence;
-                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence;
+                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight;
+                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight;
                 humidity += sampledHumidity;
                 temperature += sampledTemperature;
 

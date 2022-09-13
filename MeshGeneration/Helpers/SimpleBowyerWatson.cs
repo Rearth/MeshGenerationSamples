@@ -13,7 +13,8 @@ using Assert = UnityEngine.Assertions.Assert;
 [BurstCompile]
 public static class SimpleBowyerWatson {
     public static NativeList<Triangle> Delaunay(ref NativeList<int2> points, in int size,
-        ref ProfilerMarker invalidSearchMarker, ref ProfilerMarker edgeComputeMarker, ref ProfilerMarker holeTriangulationMarker, ref ProfilerMarker floodFillMarker, ref ProfilerMarker connectivityMarker) {
+        ref ProfilerMarker invalidSearchMarker, ref ProfilerMarker edgeComputeMarker, ref ProfilerMarker holeTriangulationMarker, ref ProfilerMarker floodFillMarker,
+        ref ProfilerMarker connectivityMarker) {
         var triangles = new NativeList<Triangle>(points.Length * 2, Allocator.Temp);
         var connectivity = new NativeHashMap<int2, TrianglePair>(points.Length, Allocator.Temp);
         var firstPoint = points[0];
@@ -43,7 +44,7 @@ public static class SimpleBowyerWatson {
                 var isInside = distSq < triangle.RadiusSq;
 
                 if (!isInside) continue;
-                
+
                 badTris.Add(triIndex);
 
                 floodFillMarker.Begin();
@@ -69,7 +70,7 @@ public static class SimpleBowyerWatson {
             }
 
             edgeComputeMarker.End();
-            
+
             // remove tris that overlap with the new point
             for (int i = badTris.Length - 1; i >= 0; i--) {
                 var badTriIndex = badTris[i];
@@ -115,16 +116,14 @@ public static class SimpleBowyerWatson {
         // clean up
         // remove triangles connected to super triangle
         var toRemove = new NativeList<int>(3, Allocator.Temp);
-        for (var i = 0;
-            i < triangles.Length;
-            i++) {
+        for (var i = 0; i < triangles.Length; i++) {
             var triangle = triangles[i];
             if (triangle.deleted || math.any(triangle.Indices == superTriIndexStart) || math.any(triangle.Indices == superTriIndexStart + 1) || math.any(triangle.Indices == superTriIndexStart + 2)) {
                 toRemove.Add(i);
             }
         }
 
-        toRemove.Sort();
+        //toRemove.Sort();
         for (int i = toRemove.Length - 1; i >= 0; i--) {
             var removeIndex = toRemove[i];
             triangles.RemoveAtSwapBack(removeIndex);
@@ -208,6 +207,7 @@ public static class SimpleBowyerWatson {
         if (!pairs.TryGetValue(sortedIndices, out var pair)) {
             return 0;
         }
+
         return pair.triA == source ? pair.triB : pair.triA;
     }
 

@@ -1,21 +1,64 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEditor;
 using UnityEngine;
 
-public class SaveHeightStack : MonoBehaviour {
+public class ReloadTrigger : EditorWindow {
+
+    [MenuItem("Tools/Orbis/Enable")]
+    public static void Enable() {
+        SceneView.duringSceneGui += OnScene;
+    }
+
+    [MenuItem("Tools/Orbis/Disable")]
+    public static void Disable() {
+        SceneView.duringSceneGui -= OnScene;
+    }
+
+    private static void OnScene(SceneView sceneview) {
+        Handles.BeginGUI();
+        if (GUILayout.Button("Orbis Reload", GUILayout.Height(20), GUILayout.Width(82))) {
+            Debug.Log("Reloading Orbis Live preview");
+            DoReload();
+        }
+
+        Handles.EndGUI();
+    }
+
+    private static void DoReload() {
+        CreateStack();
+        AssetDatabase.Refresh();
+
+        var targetWorld = World.DefaultGameObjectInjectionWorld;
+        var em = targetWorld.EntityManager;
+        var schedulerSystem = targetWorld.GetExistingSystem<OrbisSchedulerSystem>();
+
+        schedulerSystem.ResetData();
+
+        foreach (var mesh in schedulerSystem.renderMeshes) {
+            if (!em.Exists(mesh.Key)) continue;
+            var lodLevel = em.GetComponentData<TerrainLODLevel>(mesh.Key).Value;
+            if (lodLevel != 0) {
+                em.AddComponent<DestroyTerrainTag>(mesh.Key);
+            }
+            else {
+                em.RemoveComponent<QuadtreeChildren>(mesh.Key);
+                em.AddComponent<RenderTerrainTag>(mesh.Key);
+            }
+        }
+    }
+
+
 #if UNITY_EDITOR
-    [MenuItem("Tools/ReloadOrbis")]
-    static void CreateStack() {
+    public static void CreateStack() {
         var parent = GameObject.Find("Stamps");
 
         if (!parent || parent.transform.childCount == 0) {
-            print("unable to find stamp parent");
+            Debug.Log("unable to find stamp parent");
             return;
         }
 

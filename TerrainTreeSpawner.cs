@@ -6,39 +6,42 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Scenes;
 using Unity.Transforms;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
+using Object = System.Object;
 
 [ExecuteInEditMode]
 public class TerrainTreeSpawner : MonoBehaviour {
-
     public SpawnConfiguration config;
     public GameObject tree;
     public bool spawn;
     public bool clear;
 
-    public Transform treeParent;
-    
     private void OnValidate() {
+        var subScene = SceneManager.GetSceneByName("VegetationScene");
+        var treeParent = subScene.GetRootGameObjects()[0].transform;
+        if (!treeParent) return;
 
         if (clear || spawn) {
             clear = false;
             foreach (Transform child in treeParent) {
-                UnityEditor.EditorApplication.delayCall += () => {
-                    GameObject.DestroyImmediate(child.gameObject);
-                };
+                UnityEditor.EditorApplication.delayCall += () => { GameObject.DestroyImmediate(child.gameObject); };
             }
+            EditorSceneManager.MarkSceneDirty(subScene);
         }
-        
+
         if (!spawn) return;
-        
+
         spawn = false;
         print("spawning " + config + " trees");
 
         var world = World.DefaultGameObjectInjectionWorld;
         var em = world.EntityManager;
-        
+
         var terrainQuery = em.CreateEntityQuery(ComponentType.ReadOnly<LocalToWorld>(), typeof(TerrainStaticData), typeof(TerrainLODLevel));
         var entities = terrainQuery.ToEntityArray(Allocator.Temp);
         var ltws = terrainQuery.ToComponentDataArray<LocalToWorld>(Allocator.Temp);
@@ -63,7 +66,7 @@ public class TerrainTreeSpawner : MonoBehaviour {
             var ltw = ltws[i];
             var data = datas[i];
             var lod = lods[i].Value;
-            
+
             if (lod != 0) continue;
 
             var job = new TreeSpawnerJob() {
@@ -76,12 +79,10 @@ public class TerrainTreeSpawner : MonoBehaviour {
                 positions = sampledPoints
             };
             handle = job.Schedule(handle);
-            
-            Debug.Log("scheduling job");
         }
-        
+
         handle.Complete();
-        
+
         timer.Stop();
         print(timer.ElapsedMilliseconds + "ms for " + sampledPoints.Length + " valid points");
 
@@ -98,8 +99,10 @@ public class TerrainTreeSpawner : MonoBehaviour {
         datas.Dispose();
         lods.Dispose();
         sampledPoints.Dispose();
+
+        EditorSceneManager.MarkSceneDirty(subScene);
     }
-    
+
     [Serializable]
     public struct SpawnConfiguration {
         public int Count;

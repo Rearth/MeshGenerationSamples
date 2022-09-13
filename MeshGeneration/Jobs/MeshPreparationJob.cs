@@ -18,10 +18,11 @@ public struct MeshPreparationJob : IJob {
     public void Execute() {
         meshData.SetIndexBufferParams(triangles.Length * 3, IndexFormat.UInt32);
 
-        var attributes = new NativeArray<VertexAttributeDescriptor>(3, Allocator.Temp) {
+        var attributes = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp) {
             [0] = new VertexAttributeDescriptor(VertexAttribute.Position),
             [1] = new VertexAttributeDescriptor(VertexAttribute.Normal),
-            [2] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float16, 2)
+            [2] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 4),
+            [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, dimension: 2)
         };
 
         meshData.SetVertexBufferParams(vertices.Length, attributes);

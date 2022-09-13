@@ -54,8 +54,8 @@ public struct HeightSampleJob : IJobParallelFor {
         var combinedHeight = settings.StartHeight;
         var stampCount = 0;
 
-        var temperature = 0.5;
-        var humidity = 0.5;
+        var temperature = 0f;
+        var humidity = 0f;
 
         for (var i = 0; i < stamps.Length; i++) {
             var stampData = stamps[i];
@@ -83,15 +83,21 @@ public struct HeightSampleJob : IJobParallelFor {
             var combinedInfluence = math.min(heightInfluence.x, heightInfluence.y);
 
             if (stampData.Stamp.BlendMode == HeightmapStamp.BlendType.BiomeOnly) {
-                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight;
-                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight;
+                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight * stampData.Stamp.HeightScale + stampData.Stamp.HeightOffset;
+                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight * stampData.Stamp.HeightScale + stampData.Stamp.HeightOffset;
+                humidity += sampledHumidity;
+                temperature += sampledTemperature;
+            } else if (stampData.Stamp.BlendMode == HeightmapStamp.BlendType.BiomeBlend) {
+                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight * stampData.Stamp.HeightScale + stampData.Stamp.HeightOffset;
+                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight * stampData.Stamp.HeightScale + stampData.Stamp.HeightOffset;
                 humidity += sampledHumidity;
                 temperature += sampledTemperature;
             }
             else {
                 // ranges -1 : 1, to allow increasing or decreasing. Resulting value of position is clamped to 0-1
-                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight;
-                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight;
+                var blendStrength = stampData.Stamp.HeightScale + stampData.Stamp.HeightOffset;
+                var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight * blendStrength;
+                var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight * blendStrength;
                 humidity += sampledHumidity;
                 temperature += sampledTemperature;
 
@@ -99,8 +105,8 @@ public struct HeightSampleJob : IJobParallelFor {
             }
         }
 
-        temperature = math.clamp(temperature, 0, 1);
-        humidity = math.clamp(humidity, 0, 1);
+        temperature = math.clamp(temperature, -1, 1);
+        humidity = math.clamp(humidity, -1, 1);
 
         return new HeightSample {Height = combinedHeight, BiomeData = new half2(new half(temperature), new half(humidity)), StampCount = (ushort) stampCount};
     }

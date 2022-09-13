@@ -14,7 +14,6 @@ public struct VertexPassJob : IJobParallelFor {
     [ReadOnly] public NativeArray<HeightSample> heights;
     public TerrainStaticData settings;
     public TerrainUVData uvData;
-    public ushort LODLevel;
 
     [WriteOnly] public NativeList<VertexData>.ParallelWriter vertices;
     [WriteOnly] public NativeHashMap<int2, int>.ParallelWriter pointToVertexReferences;
@@ -55,7 +54,7 @@ public struct VertexPassJob : IJobParallelFor {
         var normalAngle = Vector3.Angle(normal, Vector3.up);
 
         var biomeSample = SampleBiome(x, y);
-        var biomeCalculated = CalculateBiomeColors(in biomeSample, in normalAngle, in angle, in LODLevel, in settings.BiomeConfig);
+        var biomeCalculated = CalculateBiomeColors(in biomeSample, in normalAngle, in angle, in settings.BiomeConfig);
         var colorData = new Color(EncodeToFloat(new Color(biomeCalculated.c0.x, biomeCalculated.c0.y, biomeCalculated.c0.z, biomeCalculated.c0.w)), EncodeToFloat(biomeCalculated.c1), 0f, 0f);
 
         var uvPosition = uvStartPos + (uvSize / (settings.VertexCount - 1) * new float2(x, y));
@@ -105,7 +104,7 @@ public struct VertexPassJob : IJobParallelFor {
         normalB = math.cross(posD - centerPos, posB - centerPos);
     }
 
-    private static float4x2 CalculateBiomeColors(in half2 biomeData, in float angle, in float featureAngle, in ushort lodLevel, in BiomeConfiguration biomeConfiguration) {
+    private static float4x2 CalculateBiomeColors(in half2 biomeData, in float angle, in float featureAngle, in BiomeConfiguration biomeConfiguration) {
 
         var temperature = math.clamp(biomeData.x, -1, 1);
         var humidity = math.clamp(biomeData.y, -1, 1);
@@ -118,7 +117,6 @@ public struct VertexPassJob : IJobParallelFor {
          * 4 warm dry
          * 5 warm wet
          * 6 cliff normal
-         * 7 cliff feature
          */
 
         var a = float4.zero;
@@ -153,12 +151,9 @@ public struct VertexPassJob : IJobParallelFor {
         warmth = warmth > temperate && warmth > cold ? 1f : warmth;
 
         var cliff = math.smoothstep(biomeConfiguration.cliffAngle - biomeConfiguration.falloffStrength * 2, biomeConfiguration.cliffAngle + biomeConfiguration.falloffStrength * 2, angle);
-        var feature = math.smoothstep(biomeConfiguration.featureAngle - biomeConfiguration.falloffStrength * 6, biomeConfiguration.featureAngle + biomeConfiguration.falloffStrength * 6, 
-            featureAngle - biomeConfiguration.featureAngleLODInfluence * lodLevel);
-
-        var cliffCombo = math.max(cliff, feature);
-        dry *= (1 - cliffCombo);
-        wet *= (1 - cliffCombo);
+        
+        dry *= (1 - cliff);
+        wet *= (1 - cliff);
 
         temperate *= (1 - (cold + warmth));
         
@@ -166,7 +161,7 @@ public struct VertexPassJob : IJobParallelFor {
         // feature = feature > cliff ? 1f : feature;
         
         a = new float4(temperate * dry, temperate * wet, cold * dry, cold * wet);
-        b = new float4(warmth * dry, warmth * wet, cliff, feature);
+        b = new float4(warmth * dry, warmth * wet, cliff, 0f);
         
         // Debug.Log(temperate + " " + humidity + " " + a);
 
@@ -224,7 +219,5 @@ public struct VertexPassJob : IJobParallelFor {
         public float warmEdge;
         public float wetEdge;
         public float cliffAngle;
-        public float featureAngle;
-        public float featureAngleLODInfluence;
     }
 }

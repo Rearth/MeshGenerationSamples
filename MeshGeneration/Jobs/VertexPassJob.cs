@@ -117,6 +117,7 @@ public struct VertexPassJob : IJobParallelFor {
          * 4 warm dry
          * 5 warm wet
          * 6 cliff normal
+         * 7 cliff hot
          */
 
         var a = float4.zero;
@@ -151,9 +152,11 @@ public struct VertexPassJob : IJobParallelFor {
         warmth = warmth > temperate && warmth > cold ? 1f : warmth;
 
         var cliff = math.smoothstep(biomeConfiguration.cliffAngle - biomeConfiguration.falloffStrength * 2, biomeConfiguration.cliffAngle + biomeConfiguration.falloffStrength * 2, angle);
+
+        var cliffHot = temperature > biomeConfiguration.warmEdge ? 1f : 0f;
         
-        dry *= (1 - cliff);
-        wet *= (1 - cliff);
+        dry *= 1 - cliff;
+        wet *= 1 - cliff;
 
         temperate *= (1 - (cold + warmth));
         
@@ -161,7 +164,7 @@ public struct VertexPassJob : IJobParallelFor {
         // feature = feature > cliff ? 1f : feature;
         
         a = new float4(temperate * dry, temperate * wet, cold * dry, cold * wet);
-        b = new float4(warmth * dry, warmth * wet, cliff, 0f);
+        b = new float4(warmth * dry, warmth * wet, cliff * (1f - cliffHot), cliff * cliffHot);
         
         // Debug.Log(temperate + " " + humidity + " " + a);
 

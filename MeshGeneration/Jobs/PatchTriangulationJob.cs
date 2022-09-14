@@ -1,5 +1,6 @@
 ﻿using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Profiling;
@@ -33,7 +34,7 @@ public struct PatchTriangulationJob : IJobParallelFor {
 
         var startVertex = patchPosition * patchLineVertVertexCount;
 
-        var patchVertices = new NativeList<int2>(patchLineVertVertexCount * patchLineVertVertexCount / 2, Allocator.Temp);
+        var patchVertices = new UnsafeList<int2>(patchLineVertVertexCount * patchLineVertVertexCount / 2, Allocator.Temp);
 
         var size = math.length(new int2(patchLineVertVertexCount + 1));
 

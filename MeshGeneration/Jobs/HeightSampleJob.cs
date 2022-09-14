@@ -4,7 +4,9 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Profiling;
 using Unity.Transforms;
+using UnityEngine;
 
 // ReSharper disable ForCanBeConvertedToForeach
 
@@ -18,6 +20,7 @@ public struct HeightSampleJob : IJobParallelFor {
     [ReadOnly] public NativeArray<TerrainStampData> stamps;
     [ReadOnly] public NativeArray<ushort> heightmapLinear;
     [ReadOnly] public NativeHashMap<ushort, uint> beginIndices;
+    [ReadOnly] public float4x4 terrainInverse;
     [ReadOnly] public float4x4 terrainLTW;
 
     public TerrainStaticData settings;
@@ -33,7 +36,7 @@ public struct HeightSampleJob : IJobParallelFor {
 
         var pointOnSphere = GetSphereDirection(x, y, settings, in uvData);
 
-        var heightSample = SampleFromStamps(pointOnSphere, in settings, in stamps, in heightmapLinear, in beginIndices, in terrainLTW);
+        var heightSample = SampleFromStamps(pointOnSphere, in settings, in stamps, in heightmapLinear, in beginIndices, in terrainInverse, in terrainLTW);
         heights[index] = heightSample;
     }
 
@@ -48,34 +51,35 @@ public struct HeightSampleJob : IJobParallelFor {
 
         return Geometry.TransformPointFlatToSphere(in localFlatPosition, in sphereCenter, sphereRadius);
     }
-
+    
     public static HeightSample SampleFromStamps(in float3 pointOnSphere, in TerrainStaticData settings, in NativeArray<TerrainStampData> stamps, in NativeArray<ushort> heightmapLinear, 
-        in NativeHashMap<ushort, uint> beginIndices, in float4x4 terrainLTW) {
+        in NativeHashMap<ushort, uint> beginIndices, in float4x4 terrainInverse, in float4x4 terrainLTW) {
         var combinedHeight = settings.StartHeight;
         var stampCount = 0;
 
         var temperature = 0f;
         var humidity = 0f;
 
+        var sphereDirection = math.normalize(pointOnSphere);
+
         for (var i = 0; i < stamps.Length; i++) {
             var stampData = stamps[i];
 
-            var sphereDirection = math.normalize(pointOnSphere);
-
-            var stampLTWCorrected = math.mul(math.fastinverse(terrainLTW), stampData.LTW);
+            var stampLTWCorrected = math.mul(terrainInverse, stampData.LTW);
 
             var plane = new LocalToWorld {Value = stampLTWCorrected};
 
-            if (math.dot(sphereDirection, plane.Up) <= 0) continue;
+            if (math.dot(sphereDirection, plane.Up) <= 0) {
+                continue;
+            }
             var intersectionPoint = Geometry.PlaneRaycast(plane.Position, plane.Up, float3.zero, sphereDirection);
-
-            var pointInStampSpace = Geometry.TransformPositionInverse(intersectionPoint, plane.Value).xz;
+            var WSPoint = Geometry.TransformPosition(intersectionPoint, terrainLTW);
+            
+            var pointInStampSpace = Geometry.TransformPosition(WSPoint, stampData.WTL).xz;
             var stampUVPos = ToStampUVCoords(pointInStampSpace, stampData.Stamp.Extends);
 
             if (!IsInStamp(stampUVPos)) continue;
-
             stampCount++;
-
             var heightmap = GetHeightmapFromStack(stampData.Stamp.TextureID, stampData.Stamp.TextureSize * stampData.Stamp.TextureSize, in beginIndices, in heightmapLinear);
             var sampledHeight = NativeTextureHelper.SampleTextureBilinear(ref heightmap, stampData.Stamp.TextureSize, stampUVPos);
 
@@ -92,8 +96,7 @@ public struct HeightSampleJob : IJobParallelFor {
                 var sampledTemperature = stampData.Stamp.Temperature * combinedInfluence * sampledHeight * stampData.Stamp.HeightScale + stampData.Stamp.HeightOffset;
                 humidity += sampledHumidity;
                 temperature += sampledTemperature;
-            }
-            else {
+            } else {
                 // ranges -1 : 1, to allow increasing or decreasing. Resulting value of position is clamped to 0-1
                 var blendStrength = stampData.Stamp.HeightScale + stampData.Stamp.HeightOffset;
                 var sampledHumidity = stampData.Stamp.Humidity * combinedInfluence * sampledHeight * blendStrength;
@@ -108,7 +111,7 @@ public struct HeightSampleJob : IJobParallelFor {
         temperature = math.clamp(temperature, -1, 1);
         humidity = math.clamp(humidity, -1, 1);
 
-        return new HeightSample {Height = combinedHeight, BiomeData = new half2(new half(temperature), new half(humidity)), StampCount = (ushort) stampCount};
+        return new HeightSample {Height = combinedHeight, BiomeData = new half2((half) temperature, (half) humidity), StampCount = (ushort) stampCount};
     }
 
     public static float BlendStamp(in float lastHeight, in float stampSample, in float falloff, in HeightmapStamp stamp) {
@@ -175,5 +178,6 @@ public struct HeightSample {
 [Serializable]
 public struct TerrainStampData {
     public float4x4 LTW;
+    public float4x4 WTL;
     public HeightmapStamp Stamp;
 }

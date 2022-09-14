@@ -8,6 +8,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 
+[BurstCompile]
 public static class Geometry {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

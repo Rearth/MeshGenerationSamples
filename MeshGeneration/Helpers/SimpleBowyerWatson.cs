@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Unity.Assertions;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
@@ -12,11 +13,11 @@ using Assert = UnityEngine.Assertions.Assert;
 
 [BurstCompile]
 public static class SimpleBowyerWatson {
-    public static NativeList<Triangle> Delaunay(ref NativeList<int2> points, in int size,
+    public static NativeList<Triangle> Delaunay(ref UnsafeList<int2> points, in int size,
         ref ProfilerMarker invalidSearchMarker, ref ProfilerMarker edgeComputeMarker, ref ProfilerMarker holeTriangulationMarker, ref ProfilerMarker floodFillMarker,
         ref ProfilerMarker connectivityMarker) {
         var triangles = new NativeList<Triangle>(points.Length * 2, Allocator.Temp);
-        var connectivity = new NativeHashMap<int2, TrianglePair>(points.Length, Allocator.Temp);
+        var connectivity = new UnsafeHashMap<int2, TrianglePair>(points.Length, Allocator.Temp);
         var firstPoint = points[0];
 
         var superTriangleA = new int2(size / 2, -3 * size) + firstPoint;
@@ -31,7 +32,7 @@ public static class SimpleBowyerWatson {
 
         for (var pointIndex = 0; pointIndex < points.Length; pointIndex++) {
             var point = points[pointIndex];
-            var badTris = new NativeList<int>(2, Allocator.Temp);
+            var badTris = new UnsafeList<int>(2, Allocator.Temp);
 
             invalidSearchMarker.Begin();
             // find bad triangles
@@ -57,7 +58,7 @@ public static class SimpleBowyerWatson {
 
             // int2 values are vertex positions (represents edges)
 
-            var polygon = new NativeHashSet<int2>(6, Allocator.Temp);
+            var polygon = new UnsafeHashSet<int2>(6, Allocator.Temp);
 
             edgeComputeMarker.Begin();
             // compute valid polygon
@@ -115,7 +116,7 @@ public static class SimpleBowyerWatson {
 
         // clean up
         // remove triangles connected to super triangle
-        var toRemove = new NativeList<int>(3, Allocator.Temp);
+        var toRemove = new UnsafeList<int>(3, Allocator.Temp);
         for (var i = 0; i < triangles.Length; i++) {
             var triangle = triangles[i];
             if (triangle.deleted || math.any(triangle.Indices == superTriIndexStart) || math.any(triangle.Indices == superTriIndexStart + 1) || math.any(triangle.Indices == superTriIndexStart + 2)) {
@@ -136,7 +137,7 @@ public static class SimpleBowyerWatson {
         return triangles;
     }
 
-    private static bool isEdgeShared(in int2 edge, in int selfIndex, in NativeList<int> badTris, in NativeHashMap<int2, TrianglePair> pairs) {
+    private static bool isEdgeShared(in int2 edge, in int selfIndex, in UnsafeList<int> badTris, in UnsafeHashMap<int2, TrianglePair> pairs) {
         var sortedIndices = edge;
         if (edge.x > edge.y) sortedIndices = edge.yx;
         if (!pairs.TryGetValue(sortedIndices, out var pair)) return false;
@@ -150,7 +151,7 @@ public static class SimpleBowyerWatson {
         return false;
     }
 
-    private static Triangle getTriangle(in int3 indices, in NativeList<int2> points) {
+    private static Triangle getTriangle(in int3 indices, in UnsafeList<int2> points) {
         var posA = points[indices.x];
         var posB = points[indices.y];
         var posC = points[indices.z];
@@ -163,7 +164,7 @@ public static class SimpleBowyerWatson {
         return tri;
     }
 
-    private static void addToConnectivity(ref NativeHashMap<int2, TrianglePair> pairs, in int index, in int2 edge) {
+    private static void addToConnectivity(ref UnsafeHashMap<int2, TrianglePair> pairs, in int index, in int2 edge) {
         if (index == 0) return;
         var sortedIndices = edge;
         if (edge.x > edge.y) sortedIndices = edge.yx;
@@ -184,7 +185,7 @@ public static class SimpleBowyerWatson {
         }
     }
 
-    private static void removeFromConnectivity(ref NativeHashMap<int2, TrianglePair> pairs, in int index, in int2 edge) {
+    private static void removeFromConnectivity(ref UnsafeHashMap<int2, TrianglePair> pairs, in int index, in int2 edge) {
         if (index == 0) return;
         var sortedIndices = edge;
         if (edge.x > edge.y) sortedIndices = edge.yx;
@@ -201,7 +202,7 @@ public static class SimpleBowyerWatson {
         pairs[sortedIndices] = pair;
     }
 
-    private static int getNeighbor(in NativeHashMap<int2, TrianglePair> pairs, in int2 edge, in int source) {
+    private static int getNeighbor(in UnsafeHashMap<int2, TrianglePair> pairs, in int2 edge, in int source) {
         var sortedIndices = edge;
         if (edge.x > edge.y) sortedIndices = edge.yx;
         if (!pairs.TryGetValue(sortedIndices, out var pair)) {
@@ -211,7 +212,7 @@ public static class SimpleBowyerWatson {
         return pair.triA == source ? pair.triB : pair.triA;
     }
 
-    private static void floodFill(in NativeHashMap<int2, TrianglePair> pairs, in NativeList<Triangle> triangles, in int triIndex, in float2 point, ref NativeList<int> badTris) {
+    private static void floodFill(in UnsafeHashMap<int2, TrianglePair> pairs, in NativeList<Triangle> triangles, in int triIndex, in float2 point, ref UnsafeList<int> badTris) {
         var triangle = triangles[triIndex];
         var neighborA = getNeighbor(in pairs, triangle.EdgeA, triIndex);
         var neighborB = getNeighbor(in pairs, triangle.EdgeB, triIndex);
@@ -221,7 +222,7 @@ public static class SimpleBowyerWatson {
         CheckNeighbor(in pairs, in triangles, neighborC, in point, ref badTris);
     }
 
-    private static void CheckNeighbor(in NativeHashMap<int2, TrianglePair> pairs, in NativeList<Triangle> triangles, in int triIndex, in float2 point, ref NativeList<int> badTris) {
+    private static void CheckNeighbor(in UnsafeHashMap<int2, TrianglePair> pairs, in NativeList<Triangle> triangles, in int triIndex, in float2 point, ref UnsafeList<int> badTris) {
         if (triIndex == 0) return;
 
         for (var i = 0; i < badTris.Length; i++) {

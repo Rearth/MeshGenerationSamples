@@ -27,6 +27,7 @@ public struct TreeSpawnerJob : IJob {
         var random = new Random((uint) terrainLTW.GetHashCode());
         var terrainPos = new LocalToWorld {Value = terrainLTW}.Position;
         var usedLTW = float4x4.TRS(terrainPos, quaternion.identity, 1f);
+        var usedWTL = math.inverse(usedLTW);
 
         for (int i = 0; i < spawnConfig.Count; i++) {
             var direction = random.NextFloat3Direction();
@@ -38,9 +39,9 @@ public struct TreeSpawnerJob : IJob {
             var dirA = center + right * offset;
             var dirB = center + forward * offset;
 
-            var sampleCenter = HeightSampleJob.SampleFromStamps(center, in settings, in stamps, in heightmapLinear, in beginIndices, in usedLTW);
-            var sampleA = HeightSampleJob.SampleFromStamps(dirA, in settings, in stamps, in heightmapLinear, in beginIndices, in usedLTW);
-            var sampleB = HeightSampleJob.SampleFromStamps(dirB, in settings, in stamps, in heightmapLinear, in beginIndices, in usedLTW);
+            var sampleCenter = HeightSampleJob.SampleFromStamps(center, in settings, in stamps, in heightmapLinear, in beginIndices, in usedWTL, in usedLTW);
+            var sampleA = HeightSampleJob.SampleFromStamps(dirA, in settings, in stamps, in heightmapLinear, in beginIndices, in usedWTL, in usedLTW);
+            var sampleB = HeightSampleJob.SampleFromStamps(dirB, in settings, in stamps, in heightmapLinear, in beginIndices, in usedWTL, in usedLTW);
 
             var centerP = new float3(0, sampleCenter.Height, 0);
             var normA = new float3(1, sampleA.Height, 0);
@@ -48,7 +49,7 @@ public struct TreeSpawnerJob : IJob {
             var normalDir = math.cross(normA - centerP, normB - centerP);
             var angle = Vector3.Angle(normalDir, -Vector3.up);
 
-            var validPoint = EvaluatePosition(spawnConfig, sampleCenter, math.degrees(angle));
+            var validPoint = EvaluatePosition(spawnConfig, sampleCenter, math.degrees(angle), settings);
             if (!validPoint) continue;
 
             var targetPoint = terrainPos + direction * (settings.PlanetRadius + sampleCenter.Height * settings.HeightScale);
@@ -61,9 +62,9 @@ public struct TreeSpawnerJob : IJob {
         return new float3(1, 1, -(direction.x + direction.y) / direction.z);
     }
 
-    private static bool EvaluatePosition(in TerrainTreeSpawner.SpawnConfiguration config, in HeightSample sample, in float angle) {
+    private static bool EvaluatePosition(in TerrainTreeSpawner.SpawnConfiguration config, in HeightSample sample, in float angle, in TerrainStaticData settings) {
 
-        if (sample.Height < config.MinMaxHeight.x || sample.Height > config.MinMaxHeight.y) return false;
+        if (sample.Height * settings.HeightScale < config.MinMaxHeight.x || sample.Height * settings.HeightScale > config.MinMaxHeight.y) return false;
         if (sample.BiomeData.x < config.MinMaxTemperature.x || sample.BiomeData.x > config.MinMaxTemperature.y) return false;
         if (sample.BiomeData.y < config.MinMaxHumidity.x || sample.BiomeData.y > config.MinMaxHumidity.y) return false;
         if (angle < config.MinMaxAngles.x || angle > config.MinMaxAngles.y) return false;

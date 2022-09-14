@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using Unity.Profiling;
 using UnityEngine;
@@ -37,7 +38,7 @@ public class TriangulationBenchmark : MonoBehaviour {
         
         var random = Random.CreateFromIndex((uint) (gridSize * skipChance));
 
-        var points = new NativeList<int2>(gridSize * 2, Allocator.TempJob);
+        var points = new UnsafeList<int2>(gridSize * 2, Allocator.TempJob);
         
         // get debug points
         for (int x = 0; x <= gridSize; x++) {
@@ -80,7 +81,7 @@ public class TriangulationBenchmark : MonoBehaviour {
 
     }
 
-    private void DrawTriangles(ref NativeList<int2> points, ref NativeList<SimpleBowyerWatson.Triangle> triangles) {
+    private void DrawTriangles(ref UnsafeList<int2> points, ref NativeList<SimpleBowyerWatson.Triangle> triangles) {
 
         foreach (var triangle in triangles) {
             

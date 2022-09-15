@@ -12,7 +12,7 @@ using UnityEngine;
 
 // generates a grid of points, and calculates/stores heights for each point (scale 0-1)
 
-[BurstCompile]
+[BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
 public struct HeightSampleJob : IJobParallelFor {
     // index is based on position X/Y. No need to store/output positions, since they are directly computed again
     [WriteOnly] public NativeArray<HeightSample> heights;

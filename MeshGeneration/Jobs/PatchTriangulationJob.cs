@@ -5,7 +5,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Profiling;
 
-[BurstCompile]
+[BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
 public struct PatchTriangulationJob : IJobParallelFor {
 
     public TerrainStaticData settings;

@@ -8,7 +8,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
-[BurstCompile]
+[BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
 public struct VertexPassJob : IJobParallelFor {
     
     [ReadOnly] public NativeArray<HeightSample> heights;

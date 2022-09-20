@@ -1,33 +1,35 @@
 ﻿using Orbis;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
+using Unity.Transforms;
 using UnityEngine;
 using Random = Unity.Mathematics.Random;
 
 [BurstCompile(FloatPrecision.Low, FloatMode.Fast)]
 public struct VegetationSpawningJob : IJob {
+    [WriteOnly] public NativeList<Translation> positions;
+    [WriteOnly] public NativeList<Rotation> rotations;
 
-    [WriteOnly] public NativeList<VegetationSpawnerSystem.VegetationInstanceData> results;
-    
     [ReadOnly] public NativeArray<TerrainStampData> stamps;
     [ReadOnly] public NativeArray<ushort> heightmapLinear;
     [ReadOnly] public NativeHashMap<ushort, uint> beginIndices;
     [ReadOnly] public float4x4 terrainInverse;
     [ReadOnly] public float4x4 terrainLTW;
-    
+
     public TerrainStaticData settings;
     public TerrainUVData uvData;
-    public TerrainFoliageSettings spawnConfig;
-    public void Execute() {
+    public TerrainFoliageSetting spawnConfig;
 
+    public void Execute() {
         var count = spawnConfig.Count;
         var minDistance = uvData.UVSize / count;
         var random = new Random(settings.VertexCount);
         var points = new NativeList<float2>(Allocator.Temp);
-        
-        FastPoisonDiskSampling.sample(uvData.UVStart, uvData.UVStart + uvData.UVSize, minDistance, random, points, 20);
+
+        FastPoisonDiskSampling.sample(uvData.UVStart, uvData.UVStart + uvData.UVSize, minDistance, random, points, 5);
 
         for (var i = 0; i < points.Length; i++) {
             var candidate = points[i];
@@ -39,7 +41,7 @@ public struct VegetationSpawningJob : IJob {
             var direction = math.normalize(pointOnSphere);
             var heightSample = HeightSampleJob.SampleFromStamps(direction, in settings, in stamps, in heightmapLinear, in beginIndices, in terrainInverse, in terrainLTW);
             var localPosition = Geometry.TransformPointFlatToSphere(in localFlatPosition, in sphereCenter, sphereRadius + heightSample.Height * settings.HeightScale);
-            
+
             if (!EvaluatePositionInitial(in spawnConfig, in heightSample, in settings)) continue;
             // height & biome seems correct, calculate angles for cliff check
             var right = math.normalize(GetPerpendicularVector(direction));
@@ -51,7 +53,7 @@ public struct VegetationSpawningJob : IJob {
             var dirB = center + forward * offset;
             var heightSampleA = HeightSampleJob.SampleFromStamps(dirA, in settings, in stamps, in heightmapLinear, in beginIndices, in terrainInverse, in terrainLTW);
             var heightSampleB = HeightSampleJob.SampleFromStamps(dirB, in settings, in stamps, in heightmapLinear, in beginIndices, in terrainInverse, in terrainLTW);
-            
+
             var centerP = new float3(0, heightSample.Height, 0);
             var normA = new float3(1, heightSampleA.Height, 0);
             var normB = new float3(0, heightSampleB.Height, 1);
@@ -63,8 +65,9 @@ public struct VegetationSpawningJob : IJob {
             var worldDirection = math.rotate(terrainLTW, direction);
             var worldForward = GetPerpendicularVector(worldDirection);
             var rotation = quaternion.LookRotation(worldForward, worldDirection);
-            var dataInstance = new VegetationSpawnerSystem.VegetationInstanceData {Position = worldPoint, Rotation = rotation};
-            results.Add(dataInstance);
+
+            positions.Add(new Translation {Value = worldPoint});
+            rotations.Add(new Rotation {Value = rotation});
         }
     }
 
@@ -73,8 +76,7 @@ public struct VegetationSpawningJob : IJob {
     }
 
     // ignoring angles
-    private static bool EvaluatePositionInitial(in TerrainFoliageSettings config, in HeightSample sample, in TerrainStaticData settings) {
-
+    private static bool EvaluatePositionInitial(in TerrainFoliageSetting config, in HeightSample sample, in TerrainStaticData settings) {
         if (sample.Height * settings.HeightScale < config.MinMaxHeight.x || sample.Height * settings.HeightScale > config.MinMaxHeight.y) return false;
         if (sample.BiomeData.x < config.MinMaxTemperature.x || sample.BiomeData.x > config.MinMaxTemperature.y) return false;
         if (sample.BiomeData.y < config.MinMaxHumidity.x || sample.BiomeData.y > config.MinMaxHumidity.y) return false;

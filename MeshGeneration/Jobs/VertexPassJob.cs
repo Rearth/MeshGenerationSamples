@@ -24,8 +24,6 @@ public struct VertexPassJob : IJobParallelFor {
         var x = revIndex.x;
         var y = revIndex.y;
 
-        var isEdge = x == 0 || x == settings.VertexCount - 1 || y == 0 || y == settings.VertexCount - 1;
-
         var uvSize = uvData.UVSize;
         var uvStartPos = uvData.UVStart;
         var vertexDist = uvSize * 2f / (settings.VertexCount - 1);
